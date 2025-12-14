@@ -63,3 +63,7 @@ injects an implicit LOWER for case-insensitive searches.
 Sometimes we can get contradicting estimates (e.g. previous index scan returning only 40 rows, 
 and current estimate fetching 100 rows). Contradicting estimates like this often indicate problems with the statistics.
 (More about statistics here https://www.postgresql.org/docs/current/catalog-pg-statistic.html)
+
+## User-Defined Functions
+
+Only deterministic functions marked with immutable can be indexed.
