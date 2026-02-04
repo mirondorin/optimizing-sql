@@ -67,3 +67,39 @@ and current estimate fetching 100 rows). Contradicting estimates like this often
 ## User-Defined Functions
 
 Only deterministic functions marked with immutable can be indexed.
+
+# Parameterized Queries
+
+Dynamic parameters or bind variables are an alternative way to pass data to the database. 
+Instead of putting the values directly into the SQL statement, you just use a placeholder like ?, :name or @name and provide the actual values using a separate API call.
+
+2 Good reasons to use bind parameters:
+- Security (prevents SQL injection)
+- Performance (execution plan cache)
+
+```
+Column histograms are most useful if the values are not uniformly distributed.
+
+For columns with uniform distribution, it is often sufficient to divide the number of 
+distinct values by the number of rows in the table. This method also works when using bind parameters.
+```
+
+If we compare the optimizer to a compiler, bind variables are like program variables, 
+but if you write the values directly into the statement they are more like constants. 
+The database can use the values from the SQL statement during optimization just like a compiler can 
+evaluate constant expressions during compilation. Bind parameters are, put simply, not visible to the optimizer just 
+as the runtime values of variables are not known to the compiler.
+
+Generating and evaluating all execution plan variants is a huge effort that 
+does not pay off if you get the same result in the end anyway. 
+Not using bind parameters is like recompiling a program every time.
+
+Bind parameters cannot change the structure of an SQL statement. That means you cannot use bind parameters for table or column names. 
+The following bind parameters do not work:
+
+```
+String sql = prepare("SELECT * FROM ? WHERE ?");
+
+sql.execute('employees', 'employee_id = 1');
+```
+If you need to change the structure of an SQL statement during runtime, use dynamic SQL.
