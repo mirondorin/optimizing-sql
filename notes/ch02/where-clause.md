@@ -103,3 +103,42 @@ String sql = prepare("SELECT * FROM ? WHERE ?");
 sql.execute('employees', 'employee_id = 1');
 ```
 If you need to change the structure of an SQL statement during runtime, use dynamic SQL.
+
+# Searching for Ranges
+
+## Greater, Less & Between
+
+The biggest performance risk of an INDEX RANGE SCAN is the leaf node traversal. 
+It is therefore the golden rule of indexing to keep the scanned index range as small as possible. You can check 
+that by asking yourself where an index scan starts and where it ends.
+
+The question is easy to answer if the SQL statement mentions the start and stop conditions explicitly:
+```sql 
+SELECT first_name, last_name, date_of_birth
+FROM employees
+WHERE date_of_birth >= TO_DATE(?, 'YYYY-MM-DD')
+AND date_of_birth <= TO_DATE(?, 'YYYY-MM-DD')
+```
+
+The start and stop conditions are less obvious if a second column becomes involved:
+```sql
+SELECT first_name, last_name, date_of_birth
+FROM employees
+WHERE date_of_birth >= TO_DATE(?, 'YYYY-MM-DD')
+AND date_of_birth <= TO_DATE(?, 'YYYY-MM-DD')
+AND subsidiary_id  = ?
+```
+
+The following figures show the effect of the column order on the scanned index range. 
+For this illustration we search all employees of subsidiary 27 who were born between January 1st and January 9th 1971.
+
+![Range Scan (DoB, Subsidiary-Id)](img.png)
+
+The index is ordered by birth dates first. Only if two employees were born on the same day is the SUBSIDIARY_ID used 
+to sort these records. The query, however, covers a date range. 
+The ordering of SUBSIDIARY_ID is therefore useless during tree traversal. 
+That becomes obvious if you realize that there is no entry for subsidiary 27 in the 
+branch nodes—although there is one in the leaf nodes. 
+The filter on DATE_OF_BIRTH is therefore the only condition 
+that limits the scanned index range. It starts at the first entry matching the 
+date range and ends at the last one—all five leaf nodes.
