@@ -142,3 +142,48 @@ branch nodes—although there is one in the leaf nodes.
 The filter on DATE_OF_BIRTH is therefore the only condition 
 that limits the scanned index range. It starts at the first entry matching the 
 date range and ends at the last one—all five leaf nodes.
+
+![Range Scan (Subsidiary-Id, DoB)](img_1.png)
+
+The difference is that the equals operator limits the first index column to a single value. 
+Within the range for this value (SUBSIDIARY_ID 27) the index is sorted according to the second column—the 
+date of birth—so there is no need to visit the first leaf node because the branch node already indicates that 
+there is no employee for subsidiary 27 born after June 25th 1969 in the first leaf node.
+
+The tree traversal directly leads to the second leaf node. In this case, 
+all where clause conditions limit the scanned index range so that the scan terminates at the very same leaf node.
+
+**Rule of thumb: index for equality first—then for ranges.**
+
+To optimize performance, it is very important to know the scanned index range.
+```
+                            QUERY PLAN
+-------------------------------------------------------------------
+Index Scan using emp_test on employees
+  (cost=0.01..8.59 rows=1 width=16)
+  Index Cond: (date_of_birth >= to_date('1971-01-01','YYYY-MM-DD'))
+          AND (date_of_birth <= to_date('1971-01-10','YYYY-MM-DD'))
+          AND (subsidiary_id = 27::numeric)
+
+The PostgreSQL database does not indicate index access and filter predicates in the execution plan. 
+However, the Index Cond section lists the columns in order of the index definition. In that case, 
+we see the two DATE_OF_BIRTH predicates first, then the SUBSIDIARY_ID. 
+Knowing that any predicates following a range condition cannot be an access predicate 
+the SUBSIDIARY_ID must be a filter predicate. 
+```
+
+The database can use all conditions as access predicates if we turn the index definition around:
+```
+                            QUERY PLAN
+-------------------------------------------------------------------
+Index Scan using emp_test on employees
+   (cost=0.01..8.29 rows=1 width=17)
+   Index Cond: (subsidiary_id = 27::numeric)
+           AND (date_of_birth >= to_date('1971-01-01', 'YYYY-MM-DD'))
+           AND (date_of_birth <= to_date('1971-01-10', 'YYYY-MM-DD'))
+
+The PostgreSQL database does not indicate index access and filter predicates in the execution plan. 
+However, the Index Cond section lists the columns in order of the index definition. In that case, 
+we see the SUBSIDIARY_ID predicate first, then the two on DATE_OF_BIRTH. As there is no further column filtered 
+after the range condition on DATE_OF_BIRTH we know that all predicates can be used as access predicate.
+```
