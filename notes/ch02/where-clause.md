@@ -236,3 +236,27 @@ Exercise: How can you index a LIKE search that has only one wild card at the beg
 Answer:
 - Reverse the string and index that (naive solution)
 - Trigram / n-gram indexes (GIN - Generalized Inverted Index in postgres)
+
+## Index Merge
+
+Is it better to create one index for each column or a single index for all columns of a where clause? 
+In most cases: one index with multiple columns is better.
+
+Databases use two methods to combine indexes: 
+- Index join. 
+- Functionality from the data warehouse world.
+
+Data warehouses use a special purpose index type to solve that problem: bitmap index. 
+The advantage of bitmap indexes is that they can be combined rather easily. That means you get decent performance 
+when indexing each column individually. Conversely, if you know the query in advance, so that you can create a 
+tailored multi-column B-tree index, it will still be faster than combining multiple bitmap indexes.
+
+By far the greatest weakness of bitmap indexes is the ridiculous insert, update and delete scalability. 
+Concurrent write operations are virtually impossible. That is no problem in a data warehouse because the 
+load processes are scheduled one after another. In online applications, bitmap indexes are mostly useless.
+
+Many database products offer a hybrid solution between B-tree and bitmap indexes. 
+In the absence of a better access path, they convert the results of several B-tree scans into 
+in-memory bitmap structures. Those can be combined efficiently. The bitmap structures are not 
+stored persistently but discarded after statement execution, thus bypassing the problem of the poor write scalability. 
+The downside is it needs a lot of memory and CPU time. This method is, after all, an optimizer’s act of desperation.
