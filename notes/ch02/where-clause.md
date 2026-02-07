@@ -187,3 +187,52 @@ However, the Index Cond section lists the columns in order of the index definiti
 we see the SUBSIDIARY_ID predicate first, then the two on DATE_OF_BIRTH. As there is no further column filtered 
 after the range condition on DATE_OF_BIRTH we know that all predicates can be used as access predicate.
 ```
+
+## Indexing LIKE Filters
+
+LIKE filters can only use the characters before the first wild card during tree traversal. 
+The remaining characters are just filter predicates that do not narrow the scanned index range. 
+A single LIKE expression can therefore contain two predicate types: 
+- the part before the first wild card as an access predicate; 
+- the other characters as a filter predicate.
+
+The LIKE operator works on a character-by-character basis while collations can treat 
+multiple characters as a single sorting item. Thus, some collations prevent using indexes for LIKE.
+(https://www.cybertec-postgresql.com/en/indexing-like-postgresql-oracle/)
+
+The more selective the prefix before the first wild card is, the smaller the scanned index range becomes.
+
+![Various LIKE Searches](img_2.png)
+
+The position of the wild card characters affects index usage—at least in theory. 
+In reality the optimizer creates a generic execution plan when the search term is supplied via bind parameters. 
+In that case, the optimizer has to guess whether the majority of executions will have a leading wild card.
+Most databases just assume that there is no leading wild card when optimizing a LIKE condition with bind parameter, 
+but this assumption is wrong if the LIKE expression is used for a full-text search. 
+There is, unfortunately, no direct way to tag a LIKE condition as full-text search.
+Specifying the search term without bind parameter is the most obvious solution, 
+but that increases the optimization overhead and opens an SQL injection vulnerability. 
+
+An effective but still secure and portable solution is to intentionally obfuscate the LIKE condition.
+When using the LIKE operator for a full-text search, we could separate the wildcards from the search term:
+**WHERE text_column LIKE '%' || ? || '%'**
+
+For the PostgreSQL database, the problem is different because PostgreSQL assumes there is a leading wild card 
+when using bind parameters for a LIKE expression. PostgreSQL just does not use an index in that case. 
+The only way to get an index access for a LIKE expression is to make the actual search term visible to the optimizer.
+
+Even if the database optimizes the execution plan for a leading wild card, 
+it can still deliver insufficient performance. You can use another part of the where clause to access the data 
+efficiently in that case. If there is no other access path, you might use one of the following proprietary full-text 
+index solutions.
+
+PostgreSQL offers the @@ operator to implement full-text searches.
+Another option is to use the WildSpeed extension to optimize LIKE expressions directly. 
+The extension stores the text in all possible rotations so that each character is at the beginning once. 
+That means that the indexed text is not only stored once 
+but instead as many times as there are characters in the string—thus it needs a lot of space.
+
+Exercise: How can you index a LIKE search that has only one wild card at the beginning of the search term ('%TERM')?
+Answer:
+- Reverse the string and index that (naive solution)
+- Trigram / n-gram indexes (GIN - Generalized Inverted Index in postgres)
