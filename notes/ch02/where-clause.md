@@ -305,3 +305,42 @@ In this particular case, we can even remove the PROCESSED column because it is a
 That means the index reduces its size in two dimensions: 
 - vertically - because it contains fewer rows 
 - horizontally - due to the removed column
+
+# Obfuscated conditions (anti-patterns every developer should know about and avoid.)
+
+## Date Types
+
+A common obfuscation is to compare dates as strings as shown in the following PostgreSQL example:
+```sql
+SELECT ...
+FROM sales
+WHERE TO_CHAR(sale_date, 'YYYY-MM-DD') = '1970-01-01'
+```
+
+The problem is converting SALE_DATE. Such conditions are often created in the belief that you cannot 
+pass different types than numbers and strings to the database. Bind parameters, however, support all data types. 
+That means you can for example use a java.util.Date object as bind parameter.
+
+If you cannot do that, you just have to convert the search term instead of the table column:
+
+```sql
+SELECT ...
+  FROM sales
+ WHERE sale_date = TO_DATE('1970-01-01', 'YYYY-MM-DD')
+```
+
+This query can use a straight index on SALE_DATE. Moreover, it converts the input string only once. The previous 
+statement must convert all dates stored in the table before it can compare them against the search term.
+
+Whatever change you make—using a bind parameter or converting the other side of the comparison—you can easily 
+introduce a bug if SALE_DATE has a time component. You must use an explicit range condition in that case:
+
+```sql
+SELECT ...
+FROM sales
+WHERE sale_date >= TO_DATE('1970-01-01', 'YYYY-MM-DD')
+AND sale_date <  TO_DATE('1970-01-01', 'YYYY-MM-DD')
++ INTERVAL '1' DAY
+```
+
+Always consider using an explicit range condition when comparing dates.
