@@ -260,3 +260,48 @@ In the absence of a better access path, they convert the results of several B-tr
 in-memory bitmap structures. Those can be combined efficiently. The bitmap structures are not 
 stored persistently but discarded after statement execution, thus bypassing the problem of the poor write scalability. 
 The downside is it needs a lot of memory and CPU time. This method is, after all, an optimizer’s act of desperation.
+
+# Partial indexes
+
+With partial indexes you can also specify the rows that are indexed. A partial index is useful for commonly used 
+where conditions that use constant values—like the status code in the following example:
+```sql
+SELECT message
+  FROM messages
+ WHERE processed = 'N'
+   AND receiver  = ?
+```
+
+Queries like this are very common in queuing systems. The query fetches all unprocessed messages 
+for a specific recipient. Messages that were already processed are rarely needed. 
+If they are needed, they are usually accessed by a more specific criteria like the primary key.
+
+We can optimize this query with a two-column index. 
+Considering this query only, the column order does not matter because there is no range condition.
+
+```sql
+CREATE INDEX messages_todo 
+    ON messages (receiver, processed)
+```
+
+The index fulfills its purpose, but it includes many rows that are never searched, 
+namely all the messages that were already processed. Due to the logarithmic scalability, the index 
+nevertheless makes the query very fast even though it wastes a lot of disk space.
+
+With partial indexing you can limit the index to include only the unprocessed messages. 
+The syntax for this is surprisingly simple: a where clause.
+
+```sql
+CREATE INDEX messages_todo
+          ON messages (receiver)
+       WHERE processed = 'N'
+```
+
+The index only contains the rows that satisfy the where clause. This means queries that do not include column 
+partial index was built on (e.g. receiver in our example) can still make use of the index if it satisfies where 
+condition.
+
+In this particular case, we can even remove the PROCESSED column because it is always 'N' anyway. 
+That means the index reduces its size in two dimensions: 
+- vertically - because it contains fewer rows 
+- horizontally - due to the removed column
