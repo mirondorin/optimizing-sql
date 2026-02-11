@@ -365,3 +365,23 @@ WHERE numeric_string = 42
 
 Note the missing quotes. Although some database yield an error (e.g. PostgreSQL) many databases 
 just add an implicit type conversion.
+
+## Combining Columns
+
+Suppose we have a (DATE_COLUMN, TIME_COLUMN) index, and we want a query that selects all records from the last 24 hours.
+
+```sql
+SELECT ...
+  FROM ...
+ WHERE ADDTIME(date_column, time_column)
+     > DATE_ADD(now(), INTERVAL -1 DAY)
+ AND date_column
+    >= DATE(DATE_ADD(now(), INTERVAL -1 DAY))
+```
+
+The last condition is absolutely redundant, but it is a straight filter on DATE_COLUMN that can be used as access 
+predicate. Even though this technique is not perfect, it is usually a good enough approximation.
+
+Use a redundant condition on the most significant column when a range condition combines multiple columns.
+For PostgreSQL, it’s preferable to use the 
+[row values syntax](https://use-the-index-luke.com/sql/partial-results/fetch-next-page#ch07-paging-row-values-example).
