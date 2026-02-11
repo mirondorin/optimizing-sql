@@ -344,3 +344,24 @@ AND sale_date <  TO_DATE('1970-01-01', 'YYYY-MM-DD')
 ```
 
 Always consider using an explicit range condition when comparing dates.
+
+## Numeric Strings
+
+Numeric strings are numbers that are stored in text columns. Although it is a very bad practice, 
+it does not automatically render an index useless if you consistently treat it as string:
+```sql
+SELECT ...
+FROM ...
+WHERE numeric_string = '42'
+```
+
+Of course this statement can use an index on NUMERIC_STRING. If you compare it using a number, however, the 
+database can no longer use this condition as an access predicate.
+```sql
+SELECT ...
+FROM ...
+WHERE numeric_string = 42
+```
+
+Note the missing quotes. Although some database yield an error (e.g. PostgreSQL) many databases 
+just add an implicit type conversion.
