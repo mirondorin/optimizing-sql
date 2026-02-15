@@ -430,3 +430,31 @@ feature to cope with it—often introducing new problems and bugs.
 The PostgreSQL query plan cache works for open statements only—that is as long as you keep the PreparedStatement 
 open. The above described problem occurs only when re-using a statement handle. Note that PostgreSQL’s JDBC driver 
 enables the cache after the fifth execution only.
+
+## Math
+
+There is one more class of obfuscations that is smart and prevents proper index usage. Instead of using logic 
+expressions it is using a calculation. The following examples can NOT use an index
+
+```sql
+SELECT numeric_number
+FROM table_name
+WHERE numeric_number - 1000 > ?
+```
+
+```sql
+SELECT a, b
+FROM table_name
+WHERE 3*a + 5 = b
+```
+
+Nevertheless, we can index these expressions with a function-based index if we use calculations in a smart way and 
+transform the where clause like an equation:
+
+```sql
+SELECT a, b
+  FROM table_name
+ WHERE 3*a - b = -5
+```
+We just moved the table references to the one side and the constants to the other. We can then create a 
+function-based index for the left hand side of the equation: **CREATE INDEX math ON table_name (3*a - b)**
