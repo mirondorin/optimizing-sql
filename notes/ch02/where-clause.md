@@ -385,3 +385,48 @@ predicate. Even though this technique is not perfect, it is usually a good enoug
 Use a redundant condition on the most significant column when a range condition combines multiple columns.
 For PostgreSQL, it’s preferable to use the 
 [row values syntax](https://use-the-index-luke.com/sql/partial-results/fetch-next-page#ch07-paging-row-values-example).
+
+## Smart Logic
+
+There is a widely used practice that avoids dynamic SQL in favor of static SQL—often because of the “dynamic SQL is 
+slow” myth. This practice does more harm than good if the database uses a shared execution plan cache like Db2 (LUW),
+the Oracle database, or SQL Server.
+
+For the sake of demonstration, imagine an application that queries the EMPLOYEES table. The application allows 
+searching for subsidiary id, employee id and last name (case-insensitive) in any combination. It is still possible 
+to write a single query that covers all cases by using “smart” logic.
+
+```sql
+SELECT first_name, last_name, subsidiary_id, employee_id
+FROM employees
+WHERE ( subsidiary_id    = :sub_id OR :sub_id IS NULL )
+AND ( employee_id      = :emp_id OR :emp_id IS NULL )
+AND ( UPPER(last_name) = :name   OR :name   IS NULL )
+```
+
+This is one of the worst performance anti-patterns of all. The database cannot optimize the execution plan for a 
+particular filter because any of them could be canceled out at runtime. The database needs to prepare for the worst 
+case—if all filters are disabled: As a consequence, the database uses a full table scan even if there is an index 
+for each column.
+
+It is not that the database cannot resolve the “smart” logic. It creates the generic execution plan due to the use 
+of bind parameters so it can be cached and re-used with other values later on. If we do not use bind parameters but 
+write the actual values in the SQL statement, the optimizer selects the proper index for the active filter.
+
+The obvious solution for dynamic queries is dynamic SQL.
+
+```sql
+SELECT first_name, last_name, subsidiary_id, employee_id
+FROM employees
+WHERE UPPER(last_name) = :name
+```
+
+Use dynamic SQL if you need dynamic where clauses. Still use bind parameters when generating dynamic SQL—otherwise 
+the “dynamic SQL is slow” myth comes true.
+
+The problem described in this section is widespread. All databases that use a shared execution plan cache have a 
+feature to cope with it—often introducing new problems and bugs.
+
+The PostgreSQL query plan cache works for open statements only—that is as long as you keep the PreparedStatement 
+open. The above described problem occurs only when re-using a statement handle. Note that PostgreSQL’s JDBC driver 
+enables the cache after the fifth execution only.
