@@ -17,7 +17,7 @@ SELECT count(*)
 The column SECTION has a special purpose in this query: it controls the data volume. The bigger the SECTION number 
 becomes, the more rows the query selects. Figure 3.1 shows the response time for a small SECTION.
 
-![img.png](img.png)
+![Figure 3.1 Performance Comparison](img.png)
 
 There is a considerable performance difference between the two indexing variants. Both response times are still well 
 below a tenth of a second so even the slower query is probably fast enough in most cases. However, the performance 
@@ -26,7 +26,7 @@ environmental parameters—such as the data volume.
 
 Figure 3.2 shows the response time over the SECTION number—that means for a growing data volume.
 
-![img_1.png](img_1.png)
+![Figure 3.2 Scalability by Data Volume](img_1.png)
 
 The chart shows a growing response time for both indexes. On the right hand side of the chart, when the data volume 
 is a hundred times as high, the faster query needs more than twice as long as it originally did while the response 
@@ -75,3 +75,29 @@ CREATE INDEX scale_slow ON scale_data (section, id1, id2)
 
 The column ID1 was just added so this index has the same size as SCALE_SLOW—otherwise you might get the impression 
 the size causes the difference.
+
+# Performance Impacts of System Load
+
+No matter how insignificant the predicate information appears in the execution plan, it has a great impact on 
+performance—especially when the system grows. Remember that it is not only the data volume that grows but also the 
+access rate. This is yet another parameter of the scalability function.
+
+Figure 3.4 plots the response time as a function of the access rate—the data volume remains unchanged. It is showing 
+the execution time of the same query as before and always uses the section with the greatest data volume. That means 
+the last point from Figure 3.2 corresponds with the first point in this chart.
+
+![Figure 3.4 Scalability by System Load](img_4.png)
+
+The dashed line plots the response time when using the SCALE_SLOW index. It grows by up to 32 seconds if there are 
+25 queries running at the same time. In comparison to the response time without background load—as it might be the 
+case in your development environment—it takes 30 times as long. Even if you have a full copy of the production 
+database in your development environment, the background load can still cause a query to run much slower in production.
+
+The solid line shows the response time using the SCALE_FAST index—it does not have any filter predicates. The 
+response time stays well below two seconds even if there are 25 queries running concurrently.
+
+Suspicious response times are often taken lightly during development. This is largely because we expect the “more 
+powerful production hardware” to deliver better performance. More often than not it is the other way around because 
+the production infrastructure is more complex and accumulates latencies that do not occur in the development 
+environment. Even when testing on a production equivalent infrastructure, the background load can still cause 
+different response times.
