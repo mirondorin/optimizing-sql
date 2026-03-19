@@ -101,3 +101,59 @@ powerful production hardware” to deliver better performance. More often than n
 the production infrastructure is more complex and accumulates latencies that do not occur in the development 
 environment. Even when testing on a production equivalent infrastructure, the background load can still cause 
 different response times.
+
+# Response Time, Throughput and Horizontal Scalability
+
+Bigger hardware is not always faster—but it can usually handle more load. Bigger hardware is more like a wider 
+highway than a faster car: you cannot drive faster—well, you are not allowed to—just because there are more lanes. 
+That is the reason that more hardware does not automatically improve slow SQL queries.
+
+Scaling horizontally (adding more servers) has limitations, although more servers can process more requests, 
+they do not improve the response time for one particular query. To make searching faster, you need an efficient 
+search tree—even in non-relational systems like CouchDB and MongoDB.
+
+Proper indexing aims to fully exploit the logarithmic scalability of the B-tree index.
+
+Many of the so-called NoSQL systems still claim to solve all performance problems with horizontal scalability. This 
+scalability however is mostly limited to write operations and is accomplished with the so-called eventual 
+consistency model. SQL databases use a strict consistency model that slows down write operations, but that does not 
+necessarily imply bad throughput.
+
+## Eventual Consistency
+
+Maintaining strict consistency in a distributed system requires a synchronous coordination of all write operations 
+between the nodes. This principle has two unpleasant side effects: 
+- it adds latencies and increases response times;
+- it reduces the overall availability because multiple members must be available at the same time to 
+complete a write operation.
+
+A distributed SQL database is often confused with computer clusters that use a shared storage system or master-slave 
+replication. In fact a distributed database is more like a web shop that is integrated with an ERP system—often two 
+different products from different vendors. The consistency between both systems is still a desirable goal that is 
+often achieved using the two-phase commit (2PC) protocol. This protocol established global transactions that deliver 
+the well-known “all-or-nothing” behavior across multiple databases. Completing a global transaction is only possible 
+if all contributing members are available. It thus reduces the overall availability.
+
+The more nodes a distributed system has, the more troublesome strict consistency becomes. Maintaining strict 
+consistency is almost impossible if the system has more than a few nodes. Dropping strict consistency, on the other 
+hand, solves the availability problem and eliminates the increased response time. The basic idea is to reestablish 
+the global consistency after completing the write operation on a subset of the nodes. This approach leaves just one 
+problem unsolved: it is impossible to prevent conflicts if two nodes accept contradictory changes. Consistency is 
+eventually reached by handling conflicts, not by preventing them. In that context, consistency means that all nodes 
+have the same data—it is not necessarily the correct or best data.
+
+## Latency
+
+More hardware will typically not improve response times. In fact, it might even make the system slower because the 
+additional complexity might accumulate more latencies. Network latencies won’t be a problem if the application and 
+database run on the same computer, but this setup is rather uncommon in production environments where the database 
+and application are usually installed in dedicated hardware. Security policies might even require a firewall between 
+the application server and the database—often doubling the network latency. The more complex the infrastructure gets,
+the more latencies accumulate and the slower the responses become.
+
+Another very important latency is the disk seek time. Spinning hard disk drives (HDD) need a rather long time to 
+place the mechanical parts so that the requested data can be read—typically a few milliseconds. This latency occurs 
+four times when traversing a four level B-tree—in total: a few dozen milliseconds. However, it is very easy to 
+trigger hundreds or even thousands disk seeks with a single SQL statement, in particular when combining multiple 
+tables with a join operation. Even though caching reduces the problem dramatically and new technologies like SSD 
+decrease the seek time by an order of magnitude, joins are still generally suspected of being slow.
